@@ -7,7 +7,10 @@ import pandas as pd
 from tqdm import tqdm
 from pathlib import *
 import argparse
+import glob
 
+
+IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp', 'pfm'
 warnings.filterwarnings('ignore')
 
 width_th = 0.989
@@ -106,7 +109,7 @@ def extractTableFromGNUHBMD(IMAGE_PATH):
     return table_image_list
 
 
-def extractTableData(table_image, num_of_columns, sorted_box):
+def extractTableData(table_image, num_of_columns, sorted_box, config):
     dic = {}
     for i in range(num_of_columns):
         dic[f'Column {i}'] = []
@@ -114,7 +117,7 @@ def extractTableData(table_image, num_of_columns, sorted_box):
         x, y, w, h = box
         column_ix = count % num_of_columns
         txt = pytesseract.image_to_string(
-            table_image[y:y+h, x:x+w, :], config='--psm 7').strip()
+            table_image[y:y+h, x:x+w, :], config=config).strip()
         dic[f'Column {column_ix}'].append(txt)
     return pd.DataFrame(dic)
 
@@ -149,7 +152,7 @@ def sortBoxes(boundingBoxes, image_shape, h, w):
     return sorted_box
 
 
-def table2DataFrame(table_image, line_image):
+def table2DataFrame(table_image, line_image, config):
     contours, _ = cv2.findContours(
         line_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     _, boundingBoxes = sort_contours(contours, method='left-to-right')
@@ -158,31 +161,38 @@ def table2DataFrame(table_image, line_image):
     num_of_columns = len(set(i[0] for i in sorted_box.values))
     num_of_rows = len(set(i[1] for i in sorted_box.values))
     # print(f"columns: {num_of_columns}, rows: {num_of_rows}")
-    df = extractTableData(table_image, num_of_columns, sorted_box)
+    df = extractTableData(table_image, num_of_columns, sorted_box, config)
     return df
 
 
-def main(IMAGE_PATH, save_csv=True):
-    for IMAGE_PATH in [IMAGE_PATH]:
+def main(source, config, save_csv=True):
+    is_file = Path(source).suffix[1:] in (IMG_FORMATS)
+    is_glob = len(list(source)) == len(source)
+    if is_file:
+        source = [source]
+    if not is_file and not is_glob:
+        source = glob.glob(source + '/*')
+
+    for IMAGE_PATH in source:
         file_name = IMAGE_PATH.split('/')[-1][:-4]
         save_path = Path('./result/') / file_name
         save_path.mkdir(parents=True, exist_ok=True)
         for ix, table_image in tqdm(enumerate(extractTableFromGNUHBMD(IMAGE_PATH))):
             im, lines = drawLineOfImageTest(table_image)
             if save_csv:
-                table2DataFrame(im, lines).to_csv(
+                table2DataFrame(im, lines, config).to_csv(
                     f'{save_path}/result{ix}.csv', header=False)
             else:
                 print(table2DataFrame(im, lines))
 
 
-def parse_opt():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--source', type=str, help='file/dir/glob')
+    parser.add_argument('--source', type=str,
+                        help='file/dir/glob', required=True)
+    parser.add_argument('--config', default='--psm 7',
+                        help='set pytesseract psm. ex) --psm 7')
     parser.add_argument('--save_csv', default=True,
                         help='save tables from image')
-
-
-if __name__ == "__main__":
-    opt = parse_opt()
-    main(opt)
+    args = parser.parse_args()
+    main(**vars(args))
