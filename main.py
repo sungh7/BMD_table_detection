@@ -4,7 +4,6 @@ import pytesseract
 import warnings
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from pathlib import *
 import argparse
 import glob
@@ -177,7 +176,7 @@ def main(source, config, save_csv=True):
         file_name = IMAGE_PATH.split('/')[-1][:-4]
         save_path = Path('./result/') / file_name
         save_path.mkdir(parents=True, exist_ok=True)
-        for ix, table_image in tqdm(enumerate(extractTableFromGNUHBMD(IMAGE_PATH))):
+        for ix, table_image in enumerate(extractTableFromGNUHBMD(IMAGE_PATH)):
             im, lines = drawLineOfImageTest(table_image)
             if save_csv:
                 table2DataFrame(im, lines, config).to_csv(
