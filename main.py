@@ -83,9 +83,9 @@ def drawLineOfImageTest(image_data):
 def extractTableFromGNUHBMD(IMAGE_PATH):
     table_image_list = []
     im = cv2.imread(IMAGE_PATH)
-    im1 = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
-    _, thresh_value = cv2.threshold(im1, 180, 255, cv2.THRESH_BINARY_INV)
+    _, thresh_value = cv2.threshold(im, 180, 255, cv2.THRESH_BINARY_INV)
 
     contours, _ = cv2.findContours(
         thresh_value, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -99,12 +99,11 @@ def extractTableFromGNUHBMD(IMAGE_PATH):
                 pass
             else:
                 rectangles.append((x, y, w, h))
-    c = 0
+
     for rec in rectangles:
-        c += 1
         x, y, w, h = rec
-        im0 = im[y:y+h, x:x+w, :]
-        table_image_list.append(im0)
+        im = im[y:y+h, x:x+w]
+        table_image_list.append(im)
     return table_image_list
 
 
@@ -116,7 +115,9 @@ def extractTableData(table_image, num_of_columns, sorted_box, config):
         x, y, w, h = box
         column_ix = count % num_of_columns
         txt = pytesseract.image_to_string(
-            table_image[y:y+h, x:x+w, :], config=config).strip()
+            table_image[y:y+h, x:x+w], config=config).strip()
+        txt = txt.strip().replace('|', '')
+        if txt.startswith('(') or txt.startswith('['): txt = txt[1:]
         dic[f'Column {column_ix}'].append(txt)
     return pd.DataFrame(dic)
 
